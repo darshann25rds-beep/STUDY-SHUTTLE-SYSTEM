@@ -42,8 +42,17 @@ class LoginIn(BaseModel):
     username: str
     password: str
 
+class StudentIn(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    program: str = Field(min_length=2, max_length=100)
+    semester: int = Field(ge=1)
+
 class TaskIn(BaseModel):
-    student_id:int; subject_id:int; task_name:str=Field(min_length=2); deadline:str=''; priority:str='Medium'; status:str='Pending'
+    student_id:int; subject_id:int; task_name:str=Field(min_length=2, max_length=160); deadline:str=''; priority:str='Medium'; status:str='Pending'
+class SubjectIn(BaseModel):
+    subject_name: str = Field(min_length=2, max_length=100)
+    subject_code: str = Field(min_length=2, max_length=20)
+    difficulty_level: str = Field(pattern='^(Easy|Medium|Hard)$')
 class SessionIn(BaseModel):
     student_id:int; subject_id:int; session_date:str; duration_minutes:int=Field(gt=0); productivity:int=Field(ge=1,le=5); notes:str=''
 
@@ -64,14 +73,40 @@ def dashboard():
     return {'students':rows('SELECT COUNT(*) n FROM student')[0]['n'],'subjects':rows('SELECT COUNT(*) n FROM subject')[0]['n'],'tasks':rows('SELECT COUNT(*) n FROM study_task')[0]['n'],'sessions':rows('SELECT COUNT(*) n FROM study_session')[0]['n'],'pending':rows("SELECT COUNT(*) n FROM study_task WHERE status!='Completed'")[0]['n'],'recent':rows('SELECT ss.session_date, s.name student, sub.subject_name subject, ss.duration_minutes, ss.productivity FROM study_session ss JOIN student s USING(student_id) JOIN subject sub USING(subject_id) ORDER BY ss.session_id DESC LIMIT 5')}
 @app.get('/api/students')
 def students(): return rows('SELECT * FROM student ORDER BY student_id')
+@app.post('/api/students')
+def add_student(x: StudentIn):
+    name, program = x.name.strip(), x.program.strip()
+    if len(name) < 2 or len(program) < 2:
+        raise HTTPException(400, 'Enter a student name and program with at least 2 characters.')
+    with closing(connect()) as c:
+        cur = c.execute('INSERT INTO student(name,program,semester) VALUES(?,?,?)', (name, program, x.semester))
+        c.commit()
+        return {'message': 'Student added', 'student_id': cur.lastrowid}
+
 @app.get('/api/subjects')
 def subjects(): return rows('SELECT * FROM subject ORDER BY subject_id')
+@app.post('/api/subjects')
+def add_subject(x: SubjectIn):
+    name, code = x.subject_name.strip(), x.subject_code.strip().upper()
+    if len(name) < 2 or len(code) < 2:
+        raise HTTPException(400, 'Enter a subject name and code with at least 2 characters.')
+    with closing(connect()) as c:
+        try:
+            cur = c.execute('INSERT INTO subject(subject_name,subject_code,difficulty_level) VALUES(?,?,?)', (name, code, x.difficulty_level))
+            c.commit()
+        except sqlite3.IntegrityError:
+            raise HTTPException(409, 'That subject code is already in use. Choose a different code.')
+        return {'message': 'Subject added', 'subject_id': cur.lastrowid}
 @app.get('/api/tasks')
 def tasks(): return rows('SELECT t.*, s.name student, sub.subject_name subject FROM study_task t JOIN student s USING(student_id) JOIN subject sub USING(subject_id) ORDER BY t.task_id DESC')
 @app.post('/api/tasks')
 def add_task(x:TaskIn):
     with closing(connect()) as c:
-        cur=c.execute('INSERT INTO study_task(student_id,subject_id,task_name,deadline,priority,status) VALUES(?,?,?,?,?,?)',(x.student_id,x.subject_id,x.task_name,x.deadline,x.priority,x.status)); c.commit(); return {'message':'Task created','task_id':cur.lastrowid}
+        try:
+            cur=c.execute('INSERT INTO study_task(student_id,subject_id,task_name,deadline,priority,status) VALUES(?,?,?,?,?,?)',(x.student_id,x.subject_id,x.task_name.strip(),x.deadline,x.priority,x.status)); c.commit()
+        except sqlite3.IntegrityError:
+            raise HTTPException(400, 'Choose a student and subject that still exist, then try again.')
+        return {'message':'Task created','task_id':cur.lastrowid}
 @app.patch('/api/tasks/{task_id}')
 def update_task(task_id:int,status:str):
     with closing(connect()) as c:
@@ -89,7 +124,11 @@ def sessions(): return rows('SELECT ss.*, s.name student, sub.subject_name subje
 @app.post('/api/sessions')
 def add_session(x:SessionIn):
     with closing(connect()) as c:
-        cur=c.execute('INSERT INTO study_session(student_id,subject_id,session_date,duration_minutes,productivity,notes) VALUES(?,?,?,?,?,?)',(x.student_id,x.subject_id,x.session_date,x.duration_minutes,x.productivity,x.notes)); c.commit(); return {'message':'Study session saved','session_id':cur.lastrowid}
+        try:
+            cur=c.execute('INSERT INTO study_session(student_id,subject_id,session_date,duration_minutes,productivity,notes) VALUES(?,?,?,?,?,?)',(x.student_id,x.subject_id,x.session_date,x.duration_minutes,x.productivity,x.notes)); c.commit()
+        except sqlite3.IntegrityError:
+            raise HTTPException(400, 'Choose a student and subject that still exist, then try again.')
+        return {'message':'Study session saved','session_id':cur.lastrowid}
 @app.get('/api/performance')
 def performance(): return rows('SELECT p.*, s.name student, sub.subject_name subject, ROUND(100.0*p.marks_obtained/p.max_marks,1) percentage FROM performance p JOIN student s USING(student_id) JOIN subject sub USING(subject_id) ORDER BY p.assessment_date DESC')
 @app.get('/api/insights')
