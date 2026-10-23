@@ -1,44 +1,42 @@
-import { useEffect, useState } from "react";
-import API from "./services/api";
+import { useCallback, useEffect, useState } from 'react';
+import API from './services/api';
+import './App.css';
 
+const sections = ['Overview', 'Tasks', 'Study sessions', 'Subjects', 'Students', 'Query results'];
 function App() {
-
-    const [message, setMessage] = useState("Connecting to backend...");
-    const [error, setError] = useState("");
-
-    useEffect(() => {
-
-        API.get("/")
-            .then((response) => {
-
-                console.log("Backend response:", response.data);
-
-                setMessage(response.data.message);
-                setError("");
-            })
-            .catch((error) => {
-
-                console.error("Backend connection error:", error);
-
-                setMessage("");
-                setError("Backend connection failed");
-            });
-
-    }, []);
-
-    return (
-        <div>
-            <h1>Study Shuttle System</h1>
-
-            {message && (
-                <p>{message}</p>
-            )}
-
-            {error && (
-                <p>{error}</p>
-            )}
-        </div>
-    );
+  const [section, setSection] = useState('Overview');
+  const [user, setUser] = useState(() => { try { return JSON.parse(sessionStorage.getItem('studyShuttleUser') || 'null'); } catch { return null; } });
+  const [loginForm, setLoginForm] = useState({ username: 'user1', password: 'user1@12345' });
+  const [loginError, setLoginError] = useState('');
+  const [data, setData] = useState({ dashboard: {}, tasks: [], sessions: [], subjects: [], students: [], performance: [], insights: {} });
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [task, setTask] = useState({student_id:1,subject_id:1,task_name:'',deadline:'',priority:'Medium',status:'Pending'});
+  const [session, setSession] = useState({student_id:1,subject_id:1,session_date:new Date().toISOString().slice(0,10),duration_minutes:45,productivity:4,notes:''});
+  const load = useCallback(async () => {
+    try {
+      const [dashboard,tasks,sessions,subjects,students,performance,insights] = await Promise.all(['dashboard','tasks','sessions','subjects','students','performance','insights'].map(x=>API.get(`/api/${x}`)));
+      setData({dashboard:dashboard.data,tasks:tasks.data,sessions:sessions.data,subjects:subjects.data,students:students.data,performance:performance.data,insights:insights.data}); setError('');
+    } catch { setError('Could not connect to the API. Start the backend, then refresh this page.'); }
+  }, []);
+  useEffect(()=>{ load(); },[load]);
+  async function signIn(e) { e.preventDefault(); try { const result = await API.post('/api/login', loginForm); sessionStorage.setItem('studyShuttleUser', JSON.stringify(result.data)); setUser(result.data); setLoginError(''); } catch { setLoginError('Email or password is incorrect.'); } }
+  function signOut() { sessionStorage.removeItem('studyShuttleUser'); setUser(null); setSection('Overview'); }
+  async function action(fn, message) { try { await fn(); await load(); setNotice(message); setTimeout(()=>setNotice(''),2500); } catch { setError('That action did not work. Check that the backend is running and try again.'); } }
+  const selectOptions = (kind) => (kind==='student'?data.students:data.subjects).map(x=><option key={x[kind==='student'?'student_id':'subject_id']} value={x[kind==='student'?'student_id':'subject_id']}>{kind==='student'?x.name:x.subject_name}</option>);
+  if (!user) return <div className="login-screen"><section className="login-card"><div className="login-brand"><span className="brand-mark">SS</span><div><b>Study Shuttle</b><small>Study progress system</small></div></div><span className="eyebrow">WELCOME BACK</span><h1>Sign in to your account</h1><p className="login-copy">Review study activity, tasks, and academic progress.</p><form className="login-form" onSubmit={signIn}><label>Username<input type="text" required value={loginForm.username} onChange={e=>setLoginForm({...loginForm,username:e.target.value})}/></label><label>Password<input type="password" required value={loginForm.password} onChange={e=>setLoginForm({...loginForm,password:e.target.value})}/></label>{loginError&&<div className="alert">{loginError}</div>}<button className="primary">Sign in</button></form><div className="account-note"><b>Presentation account</b><span>Username: user1</span><span>Password: user1@12345</span></div><p className="login-footnote">Local classroom sign-in for this project.</p></section></div>;
+  return <div className="app-shell">
+    <aside className="sidebar"><div className="brand"><span className="brand-mark">SS</span><div><b>Study Shuttle</b><small>Study progress system</small></div></div><div className="nav-label">WORKSPACE</div><nav>{sections.map(s=><button key={s} className={section===s?'nav-item active':'nav-item'} onClick={()=>setSection(s)}><span>{s==='Overview'?'01':s==='Tasks'?'02':s==='Study sessions'?'03':s==='Subjects'?'04':s==='Students'?'05':'06'}</span>{s}</button>)}</nav><div className="side-note"><b>Workspace</b><p>Fictional student records for your presentation.</p><span className="status-dot"/> Local database</div></aside>
+    <main className="main"><header className="topbar"><div><span className="crumb">STUDY MANAGEMENT</span><h1>{section}</h1></div><div className="top-actions"><span className="welcome-user">Signed in as {user.name}</span><button className="refresh" onClick={load}>Refresh data</button><button className="refresh" onClick={signOut}>Sign out</button></div></header>
+      {error&&<div className="alert">{error}</div>}{notice&&<div className="notice">{notice}</div>}
+      {section==='Overview'&&<><p className="intro">A clear view of study activity, tasks, and academic progress.</p><div className="stats">{[['Students',data.dashboard.students],['Subjects',data.dashboard.subjects],['Study tasks',data.dashboard.tasks],['Study sessions',data.dashboard.sessions]].map(([label,val])=><div className="stat" key={label}><span>{label}</span><b>{val??'—'}</b><small>In this project</small></div>)}</div><div className="grid-two"><section className="panel"><div className="panel-head"><div><span className="eyebrow">ACTIVITY</span><h2>Recent study sessions</h2></div><button className="text-btn" onClick={()=>setSection('Study sessions')}>View all</button></div><div className="table-wrap"><table><thead><tr><th>Student</th><th>Subject</th><th>Date</th><th>Time</th></tr></thead><tbody>{(data.dashboard.recent||[]).map((r,i)=><tr key={i}><td>{r.student}</td><td>{r.subject}</td><td>{r.session_date}</td><td>{r.duration_minutes} min</td></tr>)}</tbody></table></div></section><section className="panel highlight"><span className="eyebrow">QUICK SUMMARY</span><h2>Keep your study plan moving</h2><p><b>{data.dashboard.pending??'—'}</b> tasks are still in progress or pending. Log your next session to keep the activity summary current.</p><button className="primary" onClick={()=>setSection('Study sessions')}>Log a study session</button></section></div></>}
+      {section==='Tasks'&&<><p className="intro">Add, complete, and remove tasks. Changes are saved to the local database.</p><section className="panel form-panel"><div className="panel-head"><div><span className="eyebrow">NEW RECORD</span><h2>Create a study task</h2></div></div><form className="form-grid" onSubmit={e=>{e.preventDefault();action(()=>API.post('/api/tasks',task),'Task created successfully');setTask({...task,task_name:''})}}><label>Task name<input required minLength="2" placeholder="e.g. Revise SQL joins" value={task.task_name} onChange={e=>setTask({...task,task_name:e.target.value})}/></label><label>Student<select value={task.student_id} onChange={e=>setTask({...task,student_id:+e.target.value})}>{selectOptions('student')}</select></label><label>Subject<select value={task.subject_id} onChange={e=>setTask({...task,subject_id:+e.target.value})}>{selectOptions('subject')}</select></label><label>Deadline<input type="date" value={task.deadline} onChange={e=>setTask({...task,deadline:e.target.value})}/></label><label>Priority<select value={task.priority} onChange={e=>setTask({...task,priority:e.target.value})}>{['High','Medium','Low'].map(x=><option key={x}>{x}</option>)}</select></label><button className="primary form-submit">Add task</button></form></section><section className="panel"><div className="panel-head"><div><span className="eyebrow">TASK LIST</span><h2>Study tasks</h2></div></div><div className="table-wrap"><table><thead><tr><th>Task</th><th>Student</th><th>Subject</th><th>Deadline</th><th>Priority</th><th>Status</th><th>Actions</th></tr></thead><tbody>{data.tasks.map(t=><tr key={t.task_id}><td>{t.task_name}</td><td>{t.student}</td><td>{t.subject}</td><td>{t.deadline||'—'}</td><td><span className={`badge ${t.priority.toLowerCase()}`}>{t.priority}</span></td><td><select className="inline-select" value={t.status} onChange={e=>action(()=>API.patch(`/api/tasks/${t.task_id}`,null,{params:{status:e.target.value}}),'Task status updated')}><option>Pending</option><option>In Progress</option><option>Completed</option></select></td><td><button className="delete-btn" onClick={()=>action(()=>API.delete(`/api/tasks/${t.task_id}`),'Task deleted')}>Delete</button></td></tr>)}</tbody></table></div></section></>}
+      {section==='Study sessions'&&<><p className="intro">Record a practice session and review saved activity.</p><section className="panel form-panel"><div className="panel-head"><div><span className="eyebrow">NEW RECORD</span><h2>Log a study session</h2></div></div><form className="form-grid" onSubmit={e=>{e.preventDefault();action(()=>API.post('/api/sessions',session),'Study session saved')}}><label>Student<select value={session.student_id} onChange={e=>setSession({...session,student_id:+e.target.value})}>{selectOptions('student')}</select></label><label>Subject<select value={session.subject_id} onChange={e=>setSession({...session,subject_id:+e.target.value})}>{selectOptions('subject')}</select></label><label>Date<input type="date" required value={session.session_date} onChange={e=>setSession({...session,session_date:e.target.value})}/></label><label>Duration (minutes)<input type="number" min="1" value={session.duration_minutes} onChange={e=>setSession({...session,duration_minutes:+e.target.value})}/></label><label>Productivity (1–5)<select value={session.productivity} onChange={e=>setSession({...session,productivity:+e.target.value})}>{[1,2,3,4,5].map(x=><option key={x}>{x}</option>)}</select></label><label>Notes<input value={session.notes} onChange={e=>setSession({...session,notes:e.target.value})} placeholder="What did you work on?"/></label><button className="primary form-submit">Save session</button></form></section><section className="panel"><div className="panel-head"><div><span className="eyebrow">SAVED ACTIVITY</span><h2>Study sessions</h2></div></div><div className="table-wrap"><table><thead><tr><th>Student</th><th>Subject</th><th>Date</th><th>Duration</th><th>Productivity</th><th>Notes</th></tr></thead><tbody>{data.sessions.map(x=><tr key={x.session_id}><td>{x.student}</td><td>{x.subject}</td><td>{x.session_date}</td><td>{x.duration_minutes} min</td><td>{x.productivity}/5</td><td>{x.notes||'—'}</td></tr>)}</tbody></table></div></section></>}
+      {section==='Subjects'&&<section className="panel"><div className="panel-head"><div><span className="eyebrow">REFERENCE DATA</span><h2>Subjects</h2></div></div><div className="subject-grid">{data.subjects.map(s=><article className="subject-card" key={s.subject_id}><span className="subject-code">{s.subject_code}</span><h3>{s.subject_name}</h3><p>Difficulty: {s.difficulty_level}</p></article>)}</div></section>}
+      {section==='Students'&&<section className="panel"><div className="panel-head"><div><span className="eyebrow">STUDENT RECORDS</span><h2>Students</h2></div></div><div className="table-wrap"><table><thead><tr><th>ID</th><th>Name</th><th>Program</th><th>Semester</th></tr></thead><tbody>{data.students.map(s=><tr key={s.student_id}><td>ST-{String(s.student_id).padStart(3,'0')}</td><td>{s.name}</td><td>{s.program}</td><td>{s.semester}</td></tr>)}</tbody></table></div></section>}
+      {section==='Query results'&&<><p className="intro">These queries show study progress from the saved records.</p><div className="query-grid">{[['Average assessment score by subject',data.insights.subject_averages,['subject','average_percent','assessments']],['Study time and productivity by subject',data.insights.study_totals,['subject','minutes','avg_productivity']],['Tasks to focus on',data.insights.pending_tasks,['task_name','student','subject','priority']]].map(([title,rows,keys])=><section className="panel" key={title}><div className="panel-head"><div><span className="eyebrow">SQL SUMMARY</span><h2>{title}</h2></div></div><div className="table-wrap"><table><thead><tr>{keys.map(k=><th key={k}>{k.replaceAll('_',' ')}</th>)}</tr></thead><tbody>{(rows||[]).map((r,i)=><tr key={i}>{keys.map(k=><td key={k}>{k==='minutes'?`${r[k]} min`:k==='average_percent'?`${r[k]}%`:r[k]}</td>)}</tr>)}</tbody></table></div><p className="result-count">{(rows||[]).length} rows returned</p></section>)}</div><section className="panel"><div className="panel-head"><div><span className="eyebrow">ASSESSMENTS</span><h2>Sample academic results</h2></div></div><div className="table-wrap"><table><thead><tr><th>Student</th><th>Subject</th><th>Assessment</th><th>Marks</th><th>Score</th></tr></thead><tbody>{data.performance.map(x=><tr key={x.performance_id}><td>{x.student}</td><td>{x.subject}</td><td>{x.assessment_name}</td><td>{x.marks_obtained}/{x.max_marks}</td><td>{x.percentage}%</td></tr>)}</tbody></table></div></section></>}
+      <footer>Study Shuttle System <span>•</span> Student study behavior, difficulties and progress</footer>
+    </main>
+  </div>;
 }
-
 export default App;
