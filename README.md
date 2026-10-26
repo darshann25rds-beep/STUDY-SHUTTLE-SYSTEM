@@ -1,61 +1,53 @@
 # Study Shuttle System
 
-A small, formal study progress project. It uses simulated students and a local SQLite database so you can run it without installing PostgreSQL. The database is created and sample records are added automatically the first time the API starts.
+A student self-service study tracker with fictional demo records.
 
-## Start it on Windows
+## Technology
 
-Install Python 3.10 or newer, Node.js, and GitHub Desktop. Open this project folder in File Explorer. Start two PowerShell windows in the folder `STUDY-SHUTTLE-SYSTEM-main`.
+- Frontend: React, Vite, and Axios
+- Backend: Python and FastAPI
+- Database: SQLite, stored locally in `backend/study_shuttle.db`
 
-### Window 1: API
+## Run on Windows
+
+Install Python and Node.js, then open two PowerShell windows in the project folder.
+
+### Backend window
 
 ```powershell
 cd backend
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python -m uvicorn main:app --reload
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn main:app --reload
 ```
 
-Leave this window open. The API is at http://127.0.0.1:8000. Its interactive API guide is at http://127.0.0.1:8000/docs.
-
-### Window 2: Website
+### Frontend window
 
 ```powershell
 cd frontend
-npm install
-npm run dev
+npm.cmd install
+npm.cmd run dev
 ```
 
-Open the local website address printed by Vite, usually http://localhost:5173.
+Open the local address Vite prints, usually http://localhost:5173. The API reference is at http://127.0.0.1:8000/docs.
 
-## Sign-in account
+## Demo student accounts
 
-Username: `user1`
+- Username `user1`, password `user1@12345` (Alice Johnson)
+- Username `student2`, password `study123` (Ethan Miller)
+- Username `student3`, password `study123` (Olivia Davis)
 
-Password: `user1@12345`
+Other existing fictional students receive `student<ID>` usernames with the same demo password. New students can create their own account from the sign-in page.
 
-This local sign-in is for classroom presentation only.
+## Student workflow
 
-## Presentation walkthrough
+1. Sign in or create a student account.
+2. Browse subjects and enroll in one or more.
+3. Create tasks for an enrolled subject and update task status.
+4. Log study sessions for enrolled subjects.
+5. Record study difficulties and stress check-ins.
+6. View personal performance and study summaries in Progress.
 
-1. Sign in with the account above, then open **Overview** and show the sample student, subject, task, and session totals.
-2. Open **Tasks**, add a task, change its status, then delete it to projectnstrate create, update, and delete.
-3. Open **Study sessions** and save a simulated session.
-4. Open **Query results** to show populated summaries for marks, study time, productivity, and pending tasks.
-5. If asked how the website communicates with the backend, open `/docs` and show the API endpoints.
+The app scopes tasks, sessions, difficulties, stress records, performance, and summaries to the signed-in student. Demo accounts use fictional records. This classroom sign-in is for local demonstration only, not production security. See `docs/ER-Diagram.md` for the implemented data relationships.
 
-The sample records are fictional. The local database file is `backend/study_shuttle.db`; deleting that file resets the sample data the next time the API starts.
-
-## Git and the friend's GitHub repository
-
-This is an editable copy made from the ZIP, so it does not contain the friend's Git history or remote connection. Do not push this folder as a new repository if your goal is to finish your friend's existing project.
-
-1. Ask your friend to add your GitHub username as a collaborator if you need to push changes.
-2. In GitHub Desktop, choose **File → Clone repository**, paste the repository link your friend sent, and choose where to save it.
-3. Copy the project changes from this project folder into that cloned repository. Keep `.git` intact and do not copy `node_modules`, `.venv`, or generated database files.
-4. In GitHub Desktop, review the changed-file list. Enter a short summary such as `Add study progress project`, then choose **Commit to the current branch**.
-5. Choose **Push origin** to upload your commit. If GitHub reports that you do not have access, ask your friend to grant collaborator access. Avoid force-pushing.
-
-Ask me before you copy changes over if you want help identifying exactly which files to copy into the cloned repository.
-
-
+Each computer keeps its own local database; this is not a shared online site. The database initializes sample records on first run and preserves existing records during schema upgrades.
